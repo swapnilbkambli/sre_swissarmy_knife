@@ -12,7 +12,7 @@ from utils import (
     generate_ids, calculate_hashes, calculate_cidr_advanced, test_regex, decode_cert,
     check_port, calculate_wildcard, calculate_mss, calculate_ttl, lookup_mac_vendor,
     get_ip_ownership, audit_ssl_site, generate_k8s_manifest, generate_unified_diff,
-    generate_split_diff, format_hcl
+    generate_split_diff, format_hcl, convert_sre_units, calculate_throughput, simulate_iam_policy
 )
 
 import sys
@@ -63,7 +63,9 @@ def load_config():
             "mac": True,
             "k8sarch": True,
             "diff": True,
-            "tfhcl": True
+            "tfhcl": True,
+            "units": True,
+            "iam": True
         },
         "pinned_tabs": [],
         "tab_usage": {},
@@ -224,7 +226,8 @@ class SettingsDialog(ft.AlertDialog):
             "jwt": "JWT Inspector", "cron": "Cron Visualizer", "yaml": "YAML <-> JSON",
             "uuid": "UUID & Hash", "cidr": "CIDR Calculator", "regex": "Regex Tester",
             "cert": "Certificate Decoder", "network": "Network Tools", "sslaudit": "SSL Site Auditor",
-            "mac": "MAC Lookup", "k8sarch": "K8s Architect", "diff": "Unified Diff", "tfhcl": "Terraform Formatter"
+            "mac": "MAC Lookup", "k8sarch": "K8s Architect", "diff": "Unified Diff", "tfhcl": "Terraform Formatter",
+            "units": "Units Converter", "iam": "IAM Simulator"
         }
         
         # Ensure config sets
@@ -1614,6 +1617,130 @@ async def main(page: ft.Page):
         padding=20, expand=True
     )
 
+    # --- Tab 14: SRE Units Converter ---
+    u_st_val = ft.TextField(label="Value", width=120, text_size=12)
+    u_st_from = ft.Dropdown(label="From", width=140, text_size=12, options=[ft.dropdown.Option(u) for u in ["B", "KB", "MB", "GB", "TB", "PB", "KiB", "MiB", "GiB", "TiB", "PiB"]])
+    u_st_to = ft.Dropdown(label="To", width=140, text_size=12, options=[ft.dropdown.Option(u) for u in ["B", "KB", "MB", "GB", "TB", "PB", "KiB", "MiB", "GiB", "TiB", "PiB"]])
+    u_st_res = ft.Text("Result: -", size=14, weight="bold", color=ft.Colors.CYAN_200)
+
+    u_nw_val = ft.TextField(label="Value", width=120, text_size=12)
+    u_nw_from = ft.Dropdown(label="From", width=140, text_size=12, options=[ft.dropdown.Option(u) for u in ["bps", "Kbps", "Mbps", "Gbps", "Tbps", "B/s", "KB/s", "MB/s", "GB/s"]])
+    u_nw_to = ft.Dropdown(label="To", width=140, text_size=12, options=[ft.dropdown.Option(u) for u in ["bps", "Kbps", "Mbps", "Gbps", "Tbps", "B/s", "KB/s", "MB/s", "GB/s"]])
+    u_nw_res = ft.Text("Result: -", size=14, weight="bold", color=ft.Colors.CYAN_200)
+
+    u_tp_lat = ft.TextField(label="Latency (ms)", width=150, text_size=12)
+    u_tp_win = ft.TextField(label="Win Size (KB)", width=150, text_size=12)
+    u_tp_res = ft.Text("Max Throughput: -", size=14, weight="bold", color=ft.Colors.CYAN_200)
+
+    async def u_st_click(e):
+        if not u_st_val.value or not u_st_from.value or not u_st_to.value: return
+        res = convert_sre_units(u_st_val.value, u_st_from.value, u_st_to.value, "storage")
+        u_st_res.value = f"Result: {res:,.4f} {u_st_to.value}" if res is not None else "Error"
+        page.update()
+
+    async def u_st_clear(e):
+        u_st_val.value = ""
+        u_st_res.value = "Result: -"
+        page.update()
+
+    async def u_nw_click(e):
+        if not u_nw_val.value or not u_nw_from.value or not u_nw_to.value: return
+        res = convert_sre_units(u_nw_val.value, u_nw_from.value, u_nw_to.value, "network")
+        u_nw_res.value = f"Result: {res:,.4f} {u_nw_to.value}" if res is not None else "Error"
+        page.update()
+
+    async def u_nw_clear(e):
+        u_nw_val.value = ""
+        u_nw_res.value = "Result: -"
+        page.update()
+
+    async def u_tp_click(e):
+        if not u_tp_lat.value or not u_tp_win.value: return
+        res = calculate_throughput(u_tp_lat.value, u_tp_win.value)
+        u_tp_res.value = f"Max Throughput: {res:,.2f} Mbps"
+        page.update()
+
+    async def u_tp_clear(e):
+        u_tp_lat.value = ""
+        u_tp_win.value = ""
+        u_tp_res.value = "Max Throughput: -"
+        page.update()
+
+    tab_units = ft.Container(
+        content=ft.Column([
+            ft.Text("SRE Units Converter", size=20, weight="bold", color=ft.Colors.CYAN_200),
+            ft.Card(ft.Container(ft.Column([
+                ft.Text("Storage Converter (Decimal vs Binary)", weight="bold"),
+                ft.Row([u_st_val, u_st_from, ft.Text("→"), u_st_to, ft.Button("Convert", on_click=u_st_click), ft.IconButton(ft.Icons.CLEAR, on_click=u_st_clear)]),
+                u_st_res
+            ]), padding=15)),
+            ft.Card(ft.Container(ft.Column([
+                ft.Text("Network & Rate Converter", weight="bold"),
+                ft.Row([u_nw_val, u_nw_from, ft.Text("→"), u_nw_to, ft.Button("Convert", on_click=u_nw_click), ft.IconButton(ft.Icons.CLEAR, on_click=u_nw_clear)]),
+                u_nw_res
+            ]), padding=15)),
+            ft.Card(ft.Container(ft.Column([
+                ft.Text("Theoretical TCP Throughput (BDP)", weight="bold"),
+                ft.Row([u_tp_lat, u_tp_win, ft.Button("Calculate", on_click=u_tp_click), ft.IconButton(ft.Icons.CLEAR, on_click=u_tp_clear)]),
+                u_tp_res
+            ]), padding=15)),
+        ], spacing=15, scroll=ft.ScrollMode.AUTO),
+        padding=20, expand=True
+    )
+
+    # --- Tab 15: IAM Policy Simulator ---
+    iam_policy_in = ft.TextField(label="IAM Policy JSON", multiline=True, min_lines=10, text_size=12, text_style=ft.TextStyle(font_family="monospace"))
+    iam_action_in = ft.TextField(label="Action (e.g. s3:GetObject)", width=250, text_size=12)
+    iam_resource_in = ft.TextField(label="Resource ARN", expand=True, text_size=12)
+    iam_res_text = ft.Text("", size=20, weight="bold")
+
+    async def iam_eval_click(e):
+        if not iam_policy_in.value:
+            page.snack_bar = ft.SnackBar(ft.Text("Please provide an IAM Policy JSON"))
+            page.snack_bar.open = True
+            page.update()
+            return
+        if not iam_action_in.value or not iam_resource_in.value:
+            page.snack_bar = ft.SnackBar(ft.Text("Action and Resource are required"))
+            page.snack_bar.open = True
+            page.update()
+            return
+
+        iam_res_text.value = "SIMULATING..."
+        iam_res_text.color = ft.Colors.CYAN_200
+        page.update()
+        
+        await asyncio.sleep(0.5) # Slight delay for visual feedback
+        res = simulate_iam_policy(iam_policy_in.value, iam_action_in.value, iam_resource_in.value)
+        iam_res_text.value = res.upper()
+        if "ALLOW" in iam_res_text.value:
+            iam_res_text.color = ft.Colors.GREEN_400
+        else:
+            iam_res_text.color = ft.Colors.RED_400
+        page.update()
+
+    async def iam_clear_click(e):
+        iam_policy_in.value = ""
+        iam_action_in.value = ""
+        iam_resource_in.value = ""
+        iam_res_text.value = ""
+        page.update()
+
+    tab_iam = ft.Container(
+        content=ft.Column([
+            ft.Text("IAM Policy Simulator", size=20, weight="bold", color=ft.Colors.AMBER_200),
+            iam_policy_in,
+            ft.Row([iam_action_in, iam_resource_in]),
+            ft.Row([
+                ft.Button("Evaluate Policy", icon=ft.Icons.PLAY_ARROW, on_click=iam_eval_click),
+                ft.Button("Clear", icon=ft.Icons.DELETE_OUTLINE, on_click=iam_clear_click),
+                ft.VerticalDivider(width=20),
+                iam_res_text
+            ], alignment=ft.MainAxisAlignment.START, spacing=10)
+        ], spacing=15, expand=True),
+        padding=20, expand=True
+    )
+
     available_tabs = [
         ("epoch", "Epoch Converter", ft.Icons.ACCESS_TIME, tab_time),
         ("json", "JSON Tools", ft.Icons.DATA_OBJECT, tab_json),
@@ -1624,6 +1751,8 @@ async def main(page: ft.Page):
         ("uuid", "UUID & Hash", ft.Icons.FINGERPRINT, tab_uuid),
         ("diff", "Unified Diff", ft.Icons.DIFFERENCE, tab_diff),
         ("tfhcl", "Terraform Formatter", ft.Icons.TERMINAL, tab_terraform),
+        ("units", "Units Converter", ft.Icons.CALCULATE, tab_units),
+        ("iam", "IAM Simulator", ft.Icons.POLICY, tab_iam),
         ("cidr", "CIDR Calculator", ft.Icons.NETWORK_CHECK, tab_cidr),
         ("k8sarch", "K8s Architect", ft.Icons.GRID_VIEW, tab_k8s_architect),
         ("sslaudit", "SSL Site Auditor", ft.Icons.LOCK, tab_ssl_auditor),

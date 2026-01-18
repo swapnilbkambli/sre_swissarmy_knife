@@ -13,6 +13,7 @@ OpsNexus is a high-performance utility application designed for Site Reliability
     - [Terraform HCL Formatter](#terraform-hcl-formatter)
     - [Secret Decoder](#secret-decoder)
     - [JWT Inspector](#jwt-inspector)
+    - [IAM Policy Simulator](#iam-policy-simulator)
   - [🚀 Production Troubleshooting](#-production-troubleshooting)
     - [Regex Tester (SRE Focused)](#regex-tester-sre-focused)
     - [Cron Visualizer](#cron-visualizer)
@@ -23,6 +24,7 @@ OpsNexus is a high-performance utility application designed for Site Reliability
     - [Certificate Decoder](#certificate-decoder)
     - [UUID & Hash Generator](#uuid--hash-generator)
   - [🌐 Network Operations Hub](#-network-operations-hub)
+  - [SRE Units Converter](#sre-units-converter)
 - [⚙️ Customization & Productivity](#️-customization--productivity)
 - [🚀 Quick Start](#-quick-start)
 
@@ -77,6 +79,14 @@ OpsNexus is built around a modular tab system, allowing you to enable only the t
 - Secure, offline inspection of JWT tokens. Instantly view header and payload data without sending sensitive tokens to a web service.
 
 ![JWT Inspector](assets/tab_jwt.png)
+
+#### IAM Policy Simulator
+
+- **Local Evaluation**: Securely test your IAM JSON policies without making API calls.
+- **Visual Feedback**: Large, color-coded indicators for ALLOWED and DENIED results.
+- **Wildcard Support**: Seamlessly matches actions (e.g., `s3:*`) and resources using standard IAM wildcard patterns.
+
+![IAM Simulator](assets/tab_iam.png)
 
 ### 🚀 Production Troubleshooting
 
@@ -162,6 +172,14 @@ OpsNexus is built around a modular tab system, allowing you to enable only the t
 - **MAC Address Lookup**: Identify device manufacturers (vendors) from MAC addresses or OUIs using an integrated lookup tool.
 
 ![MAC Address Lookup](assets/tab_mac_lookup.png)
+
+#### SRE Units Converter
+
+- **Storage Transformation**: Convert between decimal (GB/TB) and binary (GiB/TiB) units to accurately measure disk and cloud volumes.
+- **Network Rate Translation**: Instantly switch between Mbps, MB/s, and IOPS based on your specific operational context.
+- **Throughput Engine**: Calculate max theoretical TCP throughput (BDP) based on latency and window sizes.
+
+![Units Converter](assets/tab_units.png)
 
 ## ⚙️ Customization & Productivity
 

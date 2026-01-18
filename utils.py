@@ -773,3 +773,74 @@ def format_hcl(hcl_text):
         return "\n".join(final_lines)
     except Exception as e:
         return f"Error formatting HCL: {str(e)}"
+
+def convert_sre_units(value, from_unit, to_unit, category="storage"):
+    """Converts between various SRE-related units (Storage, Network)."""
+    try:
+        val = float(value)
+        # Storage Units (in bytes)
+        storage_map = {
+            "B": 1, 
+            "KB": 10**3, "MB": 10**6, "GB": 10**9, "TB": 10**12, "PB": 10**15,
+            "KiB": 2**10, "MiB": 2**20, "GiB": 2**30, "TiB": 2**40, "PiB": 2**50
+        }
+        # Network Units (in bps)
+        network_map = {
+            "bps": 1, "Kbps": 10**3, "Mbps": 10**6, "Gbps": 10**9, "Tbps": 10**12,
+            "B/s": 8, "KB/s": 8 * 10**3, "MB/s": 8 * 10**6, "GB/s": 8 * 10**9
+        }
+        
+        target_map = storage_map if category == "storage" else network_map
+        if from_unit not in target_map or to_unit not in target_map:
+            return None
+            
+        base_val = val * target_map[from_unit]
+        res = base_val / target_map[to_unit]
+        return res
+    except:
+        return None
+
+def calculate_throughput(latency_ms, window_kb):
+    """Calculates max theoretical throughput (Mbps) using TCP Window scaling logic."""
+    try:
+        # Throughput = WindowSize (bits) / Latency (seconds)
+        latency_sec = float(latency_ms) / 1000.0
+        window_bits = float(window_kb) * 1024 * 8
+        if latency_sec <= 0: return 0
+        bps = window_bits / latency_sec
+        return bps / (10**6) # Return Mbps
+    except:
+        return 0
+
+def simulate_iam_policy(policy_json, action, resource):
+    """Simulates a basic IAM policy evaluation (Allow/Deny with wildcards)."""
+    import fnmatch
+    try:
+        policy = json.loads(policy_json)
+        statements = policy.get("Statement", [])
+        if isinstance(statements, dict): statements = [statements]
+        
+        final_decision = "Implicit Deny" # Default
+        
+        for stmt in statements:
+            effect = stmt.get("Effect", "Allow")
+            actions = stmt.get("Action", [])
+            resources = stmt.get("Resource", [])
+            
+            if isinstance(actions, str): actions = [actions]
+            if isinstance(resources, str): resources = [resources]
+            
+            # Match Action
+            action_match = any(fnmatch.fnmatchcase(action, a) for a in actions)
+            # Match Resource
+            resource_match = any(fnmatch.fnmatchcase(resource, r) for r in resources)
+            
+            if action_match and resource_match:
+                if effect == "Deny":
+                    return "Explicit Deny" # Deny always wins
+                else:
+                    final_decision = "Allow"
+                    
+        return final_decision
+    except Exception as e:
+        return f"Error: {str(e)}"
