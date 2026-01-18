@@ -11,6 +11,7 @@ import re
 import ulid
 import socket
 import ssl
+import difflib
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.backends import default_backend
@@ -612,3 +613,89 @@ spec:
         return "Unknown Resource Type"
     except Exception as e:
         return f"Error generating manifest: {str(e)}"
+
+def generate_unified_diff(text_a, text_b):
+    """Generates a unified diff between two text blocks."""
+    try:
+        a_lines = text_a.splitlines()
+        b_lines = text_b.splitlines()
+        
+        diff = list(difflib.unified_diff(a_lines, b_lines, fromfile='Original', tofile='Modified', lineterm=''))
+        
+        # Format the diff with metadata for the UI
+        formatted_diff = []
+        for line in diff:
+            if line.startswith('---') or line.startswith('+++') or line.startswith('@@'):
+                formatted_diff.append({"type": "meta", "text": line})
+            elif line.startswith('-'):
+                formatted_diff.append({"type": "remove", "text": line})
+            elif line.startswith('+'):
+                formatted_diff.append({"type": "add", "text": line})
+            else:
+                formatted_diff.append({"type": "same", "text": line})
+                
+        return {"status": "success", "diff": formatted_diff}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+def generate_split_diff(text_a, text_b):
+    """Generates a side-by-side aligned diff with intraline highlighting."""
+    try:
+        a_lines = text_a.splitlines()
+        b_lines = text_b.splitlines()
+        
+        s = difflib.SequenceMatcher(None, a_lines, b_lines)
+        left_res = []
+        right_res = []
+        
+        for tag, i1, i2, j1, j2 in s.get_opcodes():
+            if tag == 'equal':
+                for i in range(i1, i2):
+                    left_res.append({"type": "same", "text": a_lines[i]})
+                    right_res.append({"type": "same", "text": b_lines[j1 + (i - i1)]})
+            elif tag == 'replace':
+                # Attempt intraline highlighting for changed lines
+                len_a = i2 - i1
+                len_b = j2 - j1
+                max_len = max(len_a, len_b)
+                for i in range(max_len):
+                    line_a = a_lines[i1 + i] if i < len_a else None
+                    line_b = b_lines[j1 + i] if i < len_b else None
+                    
+                    if line_a is not None and line_b is not None:
+                        # Character level diff
+                        chars = difflib.SequenceMatcher(None, line_a, line_b)
+                        left_spans = []
+                        right_spans = []
+                        for c_tag, ci1, ci2, cj1, cj2 in chars.get_opcodes():
+                            if c_tag == 'equal':
+                                left_spans.append({"type": "same", "text": line_a[ci1:ci2]})
+                                right_spans.append({"type": "same", "text": line_b[cj1:cj2]})
+                            elif c_tag == 'replace':
+                                left_spans.append({"type": "change", "text": line_a[ci1:ci2]})
+                                right_spans.append({"type": "change", "text": line_b[cj1:cj2]})
+                            elif c_tag == 'delete':
+                                left_spans.append({"type": "change", "text": line_a[ci1:ci2]})
+                            elif c_tag == 'insert':
+                                right_spans.append({"type": "change", "text": line_b[cj1:cj2]})
+                        
+                        left_res.append({"type": "change_row", "spans": left_spans})
+                        right_res.append({"type": "change_row", "spans": right_spans})
+                    elif line_a is not None:
+                        left_res.append({"type": "remove", "text": line_a})
+                        right_res.append({"type": "empty", "text": ""})
+                    elif line_b is not None:
+                        left_res.append({"type": "empty", "text": ""})
+                        right_res.append({"type": "add", "text": line_b})
+            elif tag == 'delete':
+                for i in range(i1, i2):
+                    left_res.append({"type": "remove", "text": a_lines[i]})
+                    right_res.append({"type": "empty", "text": ""})
+            elif tag == 'insert':
+                for j in range(j1, j2):
+                    left_res.append({"type": "empty", "text": ""})
+                    right_res.append({"type": "add", "b_idx": j, "text": b_lines[j]})
+                    
+        return {"status": "success", "left": left_res, "right": right_res}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}

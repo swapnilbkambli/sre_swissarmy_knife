@@ -11,7 +11,8 @@ from utils import (
     milliseconds_to_duration, jwt_decode, cron_next_runs, yaml_to_json, json_to_yaml,
     generate_ids, calculate_hashes, calculate_cidr_advanced, test_regex, decode_cert,
     check_port, calculate_wildcard, calculate_mss, calculate_ttl, lookup_mac_vendor,
-    get_ip_ownership, audit_ssl_site, generate_k8s_manifest
+    get_ip_ownership, audit_ssl_site, generate_k8s_manifest, generate_unified_diff,
+    generate_split_diff
 )
 
 import sys
@@ -60,7 +61,8 @@ def load_config():
             "cert": True,
             "sslaudit": True,
             "mac": True,
-            "k8sarch": True
+            "k8sarch": True,
+            "diff": True
         },
         "pinned_tabs": [],
         "tab_usage": {},
@@ -221,7 +223,7 @@ class SettingsDialog(ft.AlertDialog):
             "jwt": "JWT Inspector", "cron": "Cron Visualizer", "yaml": "YAML <-> JSON",
             "uuid": "UUID & Hash", "cidr": "CIDR Calculator", "regex": "Regex Tester",
             "cert": "Certificate Decoder", "network": "Network Tools", "sslaudit": "SSL Site Auditor",
-            "mac": "MAC Lookup", "k8sarch": "K8s Architect"
+            "mac": "MAC Lookup", "k8sarch": "K8s Architect", "diff": "Unified Diff"
         }
         
         # Ensure config sets
@@ -322,6 +324,18 @@ async def main(page: ft.Page):
         # Only toggle on plain Escape (no modifiers) to avoid conflict with Ctrl+Esc global hotkey
         if e.key == "Escape" and not (e.ctrl or e.shift or e.alt or e.meta):
             toggle_window()
+
+    async def set_clip(text):
+        if not text: return False
+        try:
+            res = page.clipboard.set(text)
+            if asyncio.iscoroutine(res): await res
+            return True
+        except:
+            try:
+                page.set_clipboard(text)
+                return True
+            except: return False
 
     page.on_keyboard_event = handle_keyboard
 
@@ -534,22 +548,6 @@ async def main(page: ft.Page):
         json_input.value = minify_json(json_input.value)
         page.update()
 
-    async def set_clip(text):
-        if not text:
-            return False
-        
-        # Robust fallback using the method that works on this version
-        try:
-            res = page.clipboard.set(text)
-            if asyncio.iscoroutine(res):
-                await res
-            return True
-        except Exception as e:
-            try:
-                page.set_clipboard(text)
-                return True
-            except Exception:
-                return False
 
     async def handle_copy_click(e, text):
         if await set_clip(text):
@@ -1411,8 +1409,10 @@ async def main(page: ft.Page):
 
     async def k8s_copy_click(e):
         if k8s_output.value:
-            page.set_clipboard(k8s_output.value)
-            page.snack_bar = ft.SnackBar(ft.Text("YAML copied to clipboard!"))
+            if await set_clip(k8s_output.value):
+                page.snack_bar = ft.SnackBar(ft.Text("YAML copied to clipboard!"))
+            else:
+                page.snack_bar = ft.SnackBar(ft.Text("Clipboard failed!"))
             page.snack_bar.open = True
             page.update()
 
@@ -1434,6 +1434,137 @@ async def main(page: ft.Page):
         padding=20, expand=True
     )
 
+    # --- Tab 12: Unified Config Diff ---
+    diff_input_a = ft.TextField(label="Original / Input A", multiline=True, min_lines=10, expand=True, text_style=ft.TextStyle(font_family="monospace", size=12))
+    diff_input_b = ft.TextField(label="Modified / Input B", multiline=True, min_lines=10, expand=True, text_style=ft.TextStyle(font_family="monospace", size=12))
+    
+    diff_mode_toggle = ft.SegmentedButton(
+        segments=[
+            ft.Segment(value="unified", label=ft.Text("Unified"), icon=ft.Icons.VIEW_AGENDA),
+            ft.Segment(value="split", label=ft.Text("Side-by-Side"), icon=ft.Icons.VIEW_COLUMN),
+        ],
+        selected=["unified"],
+        allow_multiple_selection=False
+    )
+    
+    diff_output_unified = ft.Column(spacing=2, visible=True)
+    diff_output_left = ft.Column(spacing=2, expand=True)
+    diff_output_right = ft.Column(spacing=2, expand=True)
+    diff_split_view = ft.Row([diff_output_left, ft.VerticalDivider(width=1, color=ft.Colors.GREY_800), diff_output_right], expand=True, visible=False)
+
+    async def diff_click(e):
+        from utils import generate_unified_diff, generate_split_diff
+        if not diff_input_a.value or not diff_input_b.value:
+            page.snack_bar = ft.SnackBar(ft.Text("Please provide both inputs!"))
+            page.snack_bar.open = True
+            page.update()
+            return
+            
+        mode = list(diff_mode_toggle.selected)[0]
+        
+        if mode == "unified":
+            res = generate_unified_diff(diff_input_a.value, diff_input_b.value)
+            if res["status"] == "error":
+                page.snack_bar = ft.SnackBar(ft.Text(f"Diff Error: {res['message']}"))
+                page.snack_bar.open = True
+                page.update()
+                return
+                
+            diff_output_unified.controls.clear()
+            for line in res["diff"]:
+                color = ft.Colors.GREY_500
+                if line["type"] == "add": color = ft.Colors.GREEN_400
+                elif line["type"] == "remove": color = ft.Colors.RED_400
+                elif line["type"] == "meta": color = ft.Colors.CYAN_400
+                elif line["type"] == "same": color = ft.Colors.WHITE
+                
+                diff_output_unified.controls.append(ft.Text(line["text"], color=color, font_family="monospace", size=11))
+            
+            diff_output_combined.content = ft.Column([diff_output_unified], scroll=ft.ScrollMode.AUTO)
+        else:
+            res = generate_split_diff(diff_input_a.value, diff_input_b.value)
+            if res["status"] == "error":
+                page.snack_bar = ft.SnackBar(ft.Text(f"Diff Error: {res['message']}"))
+                page.snack_bar.open = True
+                page.update()
+                return
+
+            diff_output_left.controls.clear()
+            diff_output_right.controls.clear()
+
+            def build_line(data):
+                if data["type"] == "same":
+                    return ft.Text(data["text"] if data["text"] else " ", color=ft.Colors.WHITE, font_family="monospace", size=11, height=15)
+                elif data["type"] in ["add", "remove"]:
+                    bg = ft.Colors.with_opacity(0.2, ft.Colors.GREEN_900 if data["type"] == "add" else ft.Colors.RED_900)
+                    fg = ft.Colors.GREEN_400 if data["type"] == "add" else ft.Colors.RED_400
+                    return ft.Container(ft.Text(data["text"] if data["text"] else " ", color=fg, font_family="monospace", size=11), bgcolor=bg, padding=ft.Padding.only(left=5), height=15)
+                elif data["type"] == "change_row":
+                    spans = []
+                    for s in data["spans"]:
+                        color = ft.Colors.WHITE
+                        bg = None
+                        if s["type"] == "change":
+                            color = ft.Colors.AMBER_300
+                            bg = ft.Colors.with_opacity(0.3, ft.Colors.AMBER_900)
+                        spans.append(ft.TextSpan(s["text"], style=ft.TextStyle(color=color, bgcolor=bg)))
+                    return ft.Container(ft.Text(spans=spans, font_family="monospace", size=11), padding=ft.Padding.only(left=5), height=15)
+                elif data["type"] == "empty":
+                    return ft.Text("", height=15) # Maintain alignment
+                return ft.Text("")
+
+            for l_data, r_data in zip(res["left"], res["right"]):
+                diff_output_left.controls.append(build_line(l_data))
+                diff_output_right.controls.append(build_line(r_data))
+            
+            diff_output_combined.content = ft.Row([
+                ft.Column([diff_output_left], expand=True, scroll=ft.ScrollMode.AUTO),
+                ft.VerticalDivider(width=1, color=ft.Colors.GREY_800),
+                ft.Column([diff_output_right], expand=True, scroll=ft.ScrollMode.AUTO)
+            ], expand=True)
+
+        page.update()
+
+    async def diff_copy_click(e):
+        mode = list(diff_mode_toggle.selected)[0]
+        text_to_copy = ""
+        if mode == "unified":
+            text_to_copy = "\n".join([c.value for c in diff_output_unified.controls if isinstance(c, ft.Text)])
+        else:
+            # For split, maybe just copy the combined view as unified?
+            res = generate_unified_diff(diff_input_a.value, diff_input_b.value)
+            text_to_copy = "\n".join([line["text"] for line in res.get("diff", [])])
+
+        if text_to_copy:
+            if await set_clip(text_to_copy):
+                page.snack_bar = ft.SnackBar(ft.Text("Unified Diff copied to clipboard!"))
+            else:
+                page.snack_bar = ft.SnackBar(ft.Text("Clipboard failed!"))
+            page.snack_bar.open = True
+            page.update()
+
+    diff_output_combined = ft.Container(
+        content=ft.Column([diff_output_unified], scroll=ft.ScrollMode.AUTO),
+        padding=10, border=ft.Border.all(1, ft.Colors.GREY_800), border_radius=5, expand=True
+    )
+
+    tab_diff = ft.Container(
+        content=ft.Column([
+            ft.Row([
+                ft.Text("Visual Config Diff", size=20, weight="bold", color=ft.Colors.CYAN_200),
+                diff_mode_toggle,
+            ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+            ft.Row([diff_input_a, diff_input_b], spacing=10, height=200),
+            ft.Row([
+                ft.Button("Run Comparison", icon=ft.Icons.COMPARE, on_click=diff_click),
+                ft.Button("Copy Unified Diff", icon=ft.Icons.COPY, on_click=diff_copy_click),
+            ]),
+            ft.Divider(height=1),
+            diff_output_combined
+        ], spacing=15, expand=True),
+        padding=20, expand=True
+    )
+
     available_tabs = [
         ("epoch", "Epoch Converter", ft.Icons.ACCESS_TIME, tab_time),
         ("json", "JSON Tools", ft.Icons.DATA_OBJECT, tab_json),
@@ -1442,6 +1573,7 @@ async def main(page: ft.Page):
         ("cron", "Cron Visualizer", ft.Icons.SCHEDULE, tab_cron),
         ("yaml", "YAML <-> JSON", ft.Icons.SWAP_HORIZ, tab_yaml),
         ("uuid", "UUID & Hash", ft.Icons.FINGERPRINT, tab_uuid),
+        ("diff", "Unified Diff", ft.Icons.DIFFERENCE, tab_diff),
         ("cidr", "CIDR Calculator", ft.Icons.NETWORK_CHECK, tab_cidr),
         ("k8sarch", "K8s Architect", ft.Icons.GRID_VIEW, tab_k8s_architect),
         ("sslaudit", "SSL Site Auditor", ft.Icons.LOCK, tab_ssl_auditor),

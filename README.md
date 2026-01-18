@@ -98,6 +98,16 @@ OpsNexus is built around a modular tab system, allowing you to enable only the t
 
 ![K8s Resource Architect](assets/tab_k8s_arch.png)
 
+#### Unified Config Diff
+
+- **Side-by-Side Comparison**: Parallel panes that align matching lines for easier cross-referencing.
+- **Intraline Highlighting**: Character-level comparison that pinpoints exactly which words changed within a line.
+- **Unified Mode**: Classic line-based diff for quick patches.
+- **Color-Coded Feedback**: Intuitive red/green/amber highlights for deletions, additions, and updates.
+- **One-Click Copy**: Easily export the comparison results as a unified patch.
+
+![Unified Config Diff](assets/tab_diff.png)
+
 #### Certificate Decoder
 
 - Inspect PEM-encoded certificates locally. View subject, issuer, validity dates, and serial numbers instantly.
