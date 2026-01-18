@@ -315,7 +315,8 @@ async def main(page: ft.Page):
         loop.call_soon_threadsafe(toggle_window)
 
     def handle_keyboard(e: ft.KeyboardEvent):
-        if e.key == "Escape":
+        # Only toggle on plain Escape (no modifiers) to avoid conflict with Ctrl+Esc global hotkey
+        if e.key == "Escape" and not (e.ctrl or e.shift or e.alt or e.meta):
             toggle_window()
 
     page.on_keyboard_event = handle_keyboard
@@ -329,9 +330,7 @@ async def main(page: ft.Page):
         try:
             # Multi-hotkey support: Alt+H (Win/Linux) and Cmd+Shift+P (Mac)
             hotkeys = {
-                '<alt>+h': on_hotkey,
-                '<cmd>+<shift>+p': on_hotkey,
-                '<ctrl>+<alt>+h': on_hotkey
+                '<ctrl>+<esc>': on_hotkey
             }
             
             with keyboard.GlobalHotKeys(hotkeys) as h:

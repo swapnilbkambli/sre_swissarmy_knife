@@ -107,8 +107,8 @@ OpsNexus is built around a modular tab system, allowing you to enable only the t
 ## ⚙️ Customization & Productivity
 
 - **Tab Management**: Disable unused tabs via the Settings menu for a cleaner workspace.
-- **Global Hotkey**: Toggle OpsNexus instantly from anywhere using `Option + H` (macOS) or `Alt + H` (Windows/Linux).
-- **Quick Dismiss**: Press the `Escape` key at any time to instantly hide/minimize the app.
+- **Global Toggle**: Toggle OpsNexus instantly from anywhere using `Ctrl + Esc`.
+- **Quick Dismiss**: Press the `Escape` key at any time (when focused) to instantly hide/minimize the app.
 - **Smart Quick Access Bar**: A dynamic row of icon shortcuts in the header.
   - **Intelligence**: Automatically surfaces your 5 most-used tools with strict deduplication.
   - **Manual Pinning**: Pin frequently used tools (e.g., Network Tools) via Settings to keep them always visible.
