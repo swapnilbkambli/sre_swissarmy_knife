@@ -12,7 +12,7 @@ from utils import (
     generate_ids, calculate_hashes, calculate_cidr_advanced, test_regex, decode_cert,
     check_port, calculate_wildcard, calculate_mss, calculate_ttl, lookup_mac_vendor,
     get_ip_ownership, audit_ssl_site, generate_k8s_manifest, generate_unified_diff,
-    generate_split_diff
+    generate_split_diff, format_hcl
 )
 
 import sys
@@ -62,7 +62,8 @@ def load_config():
             "sslaudit": True,
             "mac": True,
             "k8sarch": True,
-            "diff": True
+            "diff": True,
+            "tfhcl": True
         },
         "pinned_tabs": [],
         "tab_usage": {},
@@ -223,7 +224,7 @@ class SettingsDialog(ft.AlertDialog):
             "jwt": "JWT Inspector", "cron": "Cron Visualizer", "yaml": "YAML <-> JSON",
             "uuid": "UUID & Hash", "cidr": "CIDR Calculator", "regex": "Regex Tester",
             "cert": "Certificate Decoder", "network": "Network Tools", "sslaudit": "SSL Site Auditor",
-            "mac": "MAC Lookup", "k8sarch": "K8s Architect", "diff": "Unified Diff"
+            "mac": "MAC Lookup", "k8sarch": "K8s Architect", "diff": "Unified Diff", "tfhcl": "Terraform Formatter"
         }
         
         # Ensure config sets
@@ -1565,6 +1566,54 @@ async def main(page: ft.Page):
         padding=20, expand=True
     )
 
+    # --- Tab 13: Terraform HCL Formatter ---
+    tf_input = ft.TextField(
+        label="Raw HCL / Terraform", 
+        multiline=True, 
+        min_lines=20, 
+        text_size=12,
+        expand=True,
+        text_style=ft.TextStyle(font_family="monospace"),
+        label_style=ft.TextStyle(size=12)
+    )
+
+    async def tf_format_click(e):
+        if not tf_input.value: return
+        tf_input.value = format_hcl(tf_input.value)
+        page.update()
+
+    async def tf_copy_click(e):
+        if await set_clip(tf_input.value):
+            e.control.text = "Copied!"
+            e.control.icon = ft.Icons.CHECK
+        else:
+            e.control.text = "Empty!"
+            e.control.icon = ft.Icons.ERROR_OUTLINE
+        page.update()
+        await asyncio.sleep(2)
+        e.control.text = "Copy"
+        e.control.icon = ft.Icons.COPY
+        page.update()
+
+    async def tf_clear_click(e):
+        tf_input.value = ""
+        page.update()
+
+    tab_terraform = ft.Container(
+        content=ft.Column([
+            ft.Row([
+                ft.Text("Terraform HCL Formatter", size=20, weight="bold", color=ft.Colors.PURPLE_200),
+                ft.Row([
+                    ft.Button("Format HCL", icon=ft.Icons.AUTO_FIX_HIGH, on_click=tf_format_click),
+                    ft.Button("Copy", icon=ft.Icons.COPY, on_click=tf_copy_click),
+                    ft.Button("Clear", icon=ft.Icons.DELETE_OUTLINE, on_click=tf_clear_click),
+                ], spacing=10)
+            ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+            tf_input,
+        ], spacing=15, expand=True),
+        padding=20, expand=True
+    )
+
     available_tabs = [
         ("epoch", "Epoch Converter", ft.Icons.ACCESS_TIME, tab_time),
         ("json", "JSON Tools", ft.Icons.DATA_OBJECT, tab_json),
@@ -1574,6 +1623,7 @@ async def main(page: ft.Page):
         ("yaml", "YAML <-> JSON", ft.Icons.SWAP_HORIZ, tab_yaml),
         ("uuid", "UUID & Hash", ft.Icons.FINGERPRINT, tab_uuid),
         ("diff", "Unified Diff", ft.Icons.DIFFERENCE, tab_diff),
+        ("tfhcl", "Terraform Formatter", ft.Icons.TERMINAL, tab_terraform),
         ("cidr", "CIDR Calculator", ft.Icons.NETWORK_CHECK, tab_cidr),
         ("k8sarch", "K8s Architect", ft.Icons.GRID_VIEW, tab_k8s_architect),
         ("sslaudit", "SSL Site Auditor", ft.Icons.LOCK, tab_ssl_auditor),

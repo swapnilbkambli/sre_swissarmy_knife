@@ -4,6 +4,28 @@ OpsNexus is a high-performance utility application designed for Site Reliability
 
 ![Main Screen](assets/main_screen.png)
 
+## 📖 Table of Contents
+
+- [✨ Features](#-features)
+  - [🕒 Time Management & Epoch Converter](#-time-management--epoch-converter)
+  - [🛠️ Developer & Configuration Tools](#️-developer--configuration-tools)
+    - [JSON Tools](#json-tools)
+    - [Terraform HCL Formatter](#terraform-hcl-formatter)
+    - [Secret Decoder](#secret-decoder)
+    - [JWT Inspector](#jwt-inspector)
+  - [🚀 Production Troubleshooting](#-production-troubleshooting)
+    - [Regex Tester (SRE Focused)](#regex-tester-sre-focused)
+    - [Cron Visualizer](#cron-visualizer)
+    - [Advanced IP Subnet Calculator](#advanced-ip-subnet-calculator)
+    - [SSL/TLS Site Auditor](#ssltls-site-auditor)
+    - [K8s Resource Architect](#k8s-resource-architect)
+    - [Unified Config Diff](#unified-config-diff)
+    - [Certificate Decoder](#certificate-decoder)
+    - [UUID & Hash Generator](#uuid--hash-generator)
+  - [🌐 Network Operations Hub](#-network-operations-hub)
+- [⚙️ Customization & Productivity](#️-customization--productivity)
+- [🚀 Quick Start](#-quick-start)
+
 ## ✨ Features
 
 OpsNexus is built around a modular tab system, allowing you to enable only the tools you need.
@@ -32,11 +54,17 @@ OpsNexus is built around a modular tab system, allowing you to enable only the t
 
 ![JSON Tools](assets/tab_json.png)
 
-#### YAML <-> JSON
-
 - One-click conversion between YAML and JSON, perfect for Kubernetes manifests and cloud-native configurations.
 
 ![YAML/JSON](assets/tab_yaml_to_json.png)
+
+#### Terraform HCL Formatter
+
+- **Standalone Prettifier**: Format your Terraform code locally without needing the `terraform` binary installed.
+- **Consistent Indentation**: Automatically applies standard 2-space indentation.
+- **Operator Alignment**: Vertically aligns `=` signs within resource and module blocks for maximum readability.
+
+![Terraform Formatter](assets/tab_terraform.png)
 
 #### Secret Decoder
 

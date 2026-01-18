@@ -699,3 +699,77 @@ def generate_split_diff(text_a, text_b):
         return {"status": "success", "left": left_res, "right": right_res}
     except Exception as e:
         return {"status": "error", "message": str(e)}
+
+def format_hcl(hcl_text):
+    """Custom HCL formatter that handles indentation and operator alignment."""
+    try:
+        if not hcl_text.strip(): return ""
+        lines = hcl_text.splitlines()
+        indent_level = 0
+        indent_size = 2
+        
+        processed_lines = [line.strip() for line in lines]
+        final_lines = []
+        
+        i = 0
+        while i < len(processed_lines):
+            line = processed_lines[i]
+            
+            if not line:
+                final_lines.append("")
+                i += 1
+                continue
+
+            # Handle closing brace before indentation check
+            if line.startswith("}") or line.startswith("]"):
+                indent_level = max(0, indent_level - 1)
+
+            # Check for assignment block for alignment
+            if "=" in line and not any(line.startswith(c) for c in ["#", "//", "/*"]) and "{" not in line and "[" not in line:
+                block = []
+                j = i
+                while j < len(processed_lines):
+                    curr = processed_lines[j]
+                    if not curr: # Allow empty lines in block
+                        block.append(None)
+                        j += 1
+                        continue
+                    if "=" in curr and not any(curr.startswith(c) for c in ["#", "//", "/*"]) and "{" not in curr and "}" not in curr and "[" not in curr and "]" not in curr:
+                        block.append(curr)
+                        j += 1
+                    else:
+                        break
+                
+                if len(block) > 1 or (len(block) == 1 and block[0]):
+                    max_key_len = 0
+                    parts = []
+                    for b_line in block:
+                        if b_line is None:
+                            parts.append(None)
+                        else:
+                            k, v = b_line.split("=", 1)
+                            k, v = k.strip(), v.strip()
+                            max_key_len = max(max_key_len, len(k))
+                            parts.append((k, v))
+                    
+                    for p in parts:
+                        if p is None:
+                            final_lines.append("")
+                        else:
+                            final_lines.append(" " * (indent_level * indent_size) + f"{p[0].ljust(max_key_len)} = {p[1]}")
+                    i = j
+                    # If the block ended because of a brace, don't increment i twice
+                    continue
+
+            # Default line handling
+            final_lines.append(" " * (indent_level * indent_size) + line)
+            
+            # Increase indent after opening braces
+            if line.endswith("{") or line.endswith("["):
+                indent_level += 1
+            
+            i += 1
+            
+        return "\n".join(final_lines)
+    except Exception as e:
+        return f"Error formatting HCL: {str(e)}"
