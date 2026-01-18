@@ -11,7 +11,7 @@ from utils import (
     milliseconds_to_duration, jwt_decode, cron_next_runs, yaml_to_json, json_to_yaml,
     generate_ids, calculate_hashes, calculate_cidr_advanced, test_regex, decode_cert,
     check_port, calculate_wildcard, calculate_mss, calculate_ttl, lookup_mac_vendor,
-    get_ip_ownership, audit_ssl_site
+    get_ip_ownership, audit_ssl_site, generate_k8s_manifest
 )
 
 import sys
@@ -59,7 +59,8 @@ def load_config():
             "regex": True,
             "cert": True,
             "sslaudit": True,
-            "mac": True
+            "mac": True,
+            "k8sarch": True
         },
         "pinned_tabs": [],
         "tab_usage": {},
@@ -220,7 +221,7 @@ class SettingsDialog(ft.AlertDialog):
             "jwt": "JWT Inspector", "cron": "Cron Visualizer", "yaml": "YAML <-> JSON",
             "uuid": "UUID & Hash", "cidr": "CIDR Calculator", "regex": "Regex Tester",
             "cert": "Certificate Decoder", "network": "Network Tools", "sslaudit": "SSL Site Auditor",
-            "mac": "MAC Lookup"
+            "mac": "MAC Lookup", "k8sarch": "K8s Architect"
         }
         
         # Ensure config sets
@@ -1359,6 +1360,80 @@ async def main(page: ft.Page):
         padding=20, expand=True
     )
 
+    # --- Tab 11: K8s Resource Architect ---
+    k8s_type_dd = ft.Dropdown(
+        label="Resource Type",
+        options=[
+            ft.dropdown.Option("Deployment"),
+            ft.dropdown.Option("Service"),
+            ft.dropdown.Option("ConfigMap"),
+            ft.dropdown.Option("Ingress"),
+        ],
+        value="Deployment",
+        width=200
+    )
+    
+    k8s_name = ft.TextField(label="Name", value="example-app", expand=True)
+    k8s_ns = ft.TextField(label="Namespace", value="default", width=150)
+    k8s_img = ft.TextField(label="Image", value="nginx:latest", expand=True)
+    k8s_replicas = ft.TextField(label="Replicas", value="3", width=100)
+    k8s_port = ft.TextField(label="Port", value="80", width=100)
+    k8s_host = ft.TextField(label="Host", value="example.com", expand=True, visible=False)
+    k8s_path = ft.TextField(label="Path", value="/", expand=True, visible=False)
+    k8s_output = ft.TextField(label="Generated YAML", multiline=True, read_only=True, min_lines=15, text_style=ft.TextStyle(font_family="monospace", size=12))
+
+    def k8s_type_change(e):
+        t = k8s_type_dd.value
+        # Reset visibility
+        k8s_img.visible = (t == "Deployment")
+        k8s_replicas.visible = (t == "Deployment")
+        k8s_port.visible = (t in ["Deployment", "Service"])
+        k8s_host.visible = (t == "Ingress")
+        k8s_path.visible = (t == "Ingress")
+        page.update()
+
+    k8s_type_dd.on_change = k8s_type_change
+
+    async def k8s_gen_click(e):
+        from utils import generate_k8s_manifest
+        params = {
+            "name": k8s_name.value,
+            "namespace": k8s_ns.value,
+            "image": k8s_img.value,
+            "replicas": k8s_replicas.value,
+            "port": k8s_port.value,
+            "host": k8s_host.value,
+            "path": k8s_path.value
+        }
+        yaml_out = generate_k8s_manifest(k8s_type_dd.value, params)
+        k8s_output.value = yaml_out
+        page.update()
+
+    async def k8s_copy_click(e):
+        if k8s_output.value:
+            page.set_clipboard(k8s_output.value)
+            page.snack_bar = ft.SnackBar(ft.Text("YAML copied to clipboard!"))
+            page.snack_bar.open = True
+            page.update()
+
+    tab_k8s_architect = ft.Container(
+        content=ft.Column([
+            ft.Text("K8s Resource Architect", size=20, weight="bold", color=ft.Colors.CYAN_200),
+            ft.Row([k8s_type_dd, k8s_name, k8s_ns]),
+            ft.Row([k8s_img, k8s_replicas, k8s_port, k8s_host, k8s_path]),
+            ft.Row([
+                ft.Button("Generate YAML", icon=ft.Icons.AUTO_AWESOME, on_click=k8s_gen_click),
+                ft.Button("Copy to Clipboard", icon=ft.Icons.COPY, on_click=k8s_copy_click),
+            ]),
+            ft.Divider(height=1),
+            ft.Container(
+                content=k8s_output,
+                padding=10, border=ft.Border.all(1, ft.Colors.GREY_800), border_radius=5, expand=True
+            )
+        ], spacing=15, expand=True),
+        padding=20, expand=True
+    )
+
     available_tabs = [
         ("epoch", "Epoch Converter", ft.Icons.ACCESS_TIME, tab_time),
         ("json", "JSON Tools", ft.Icons.DATA_OBJECT, tab_json),
@@ -1368,6 +1443,7 @@ async def main(page: ft.Page):
         ("yaml", "YAML <-> JSON", ft.Icons.SWAP_HORIZ, tab_yaml),
         ("uuid", "UUID & Hash", ft.Icons.FINGERPRINT, tab_uuid),
         ("cidr", "CIDR Calculator", ft.Icons.NETWORK_CHECK, tab_cidr),
+        ("k8sarch", "K8s Architect", ft.Icons.GRID_VIEW, tab_k8s_architect),
         ("sslaudit", "SSL Site Auditor", ft.Icons.LOCK, tab_ssl_auditor),
         ("regex", "Regex Tester", ft.Icons.BUG_REPORT, tab_regex),
         ("cert", "Cert Decoder", ft.Icons.VERIFIED_USER, tab_cert),

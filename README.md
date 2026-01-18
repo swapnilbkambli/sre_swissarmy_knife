@@ -87,6 +87,17 @@ OpsNexus is built around a modular tab system, allowing you to enable only the t
 
 ![SSL/TLS Site Auditor](assets/tab_ssl.png)
 
+- **Protocol Audit**: Identifies the specific TLS protocol negotiated (e.g., TLSv1.3).
+
+#### K8s Resource Architect
+
+- **Boilerplate Generation**: Quickly create valid YAML manifests for common Kubernetes objects.
+- **Dynamic Interface**: Intelligent form fields that change based on whether you are building a Deployment, Service, ConfigMap, or Ingress.
+- **Best Practices**: Generates YAML with standard metadata, selectors, and port mappings.
+- **One-Click Copy**: Instantly copy generated manifests to your clipboard for use with `kubectl`.
+
+![K8s Resource Architect](assets/tab_k8s_arch.png)
+
 #### Certificate Decoder
 
 - Inspect PEM-encoded certificates locally. View subject, issuer, validity dates, and serial numbers instantly.

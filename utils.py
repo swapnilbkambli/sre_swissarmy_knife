@@ -514,3 +514,101 @@ def audit_ssl_site(hostname, port=443):
         }
     except Exception as e:
         return {"status": "error", "message": str(e)}
+
+def generate_k8s_manifest(resource_type, params):
+    """Generates K8s YAML manifests based on type and params."""
+    try:
+        name = params.get("name", "example-app")
+        namespace = params.get("namespace", "default")
+        labels = params.get("labels", {"app": name})
+        
+        # Helper to format labels
+        lbl_str = "\n".join([f"    {k}: {v}" for k, v in labels.items()])
+
+        if resource_type == "Deployment":
+            replicas = params.get("replicas", 3)
+            image = params.get("image", "nginx:latest")
+            port = params.get("port", 80)
+            return f"""apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {name}
+  namespace: {namespace}
+  labels:
+{lbl_str}
+spec:
+  replicas: {replicas}
+  selector:
+    matchLabels:
+{lbl_str}
+  template:
+    metadata:
+      labels:
+{lbl_str}
+    spec:
+      containers:
+      - name: {name}
+        image: {image}
+        ports:
+        - containerPort: {port}
+"""
+
+        elif resource_type == "Service":
+            svc_type = params.get("service_type", "ClusterIP")
+            port = params.get("port", 80)
+            target_port = params.get("target_port", port)
+            return f"""apiVersion: v1
+kind: Service
+metadata:
+  name: {name}
+  namespace: {namespace}
+spec:
+  type: {svc_type}
+  selector:
+{lbl_str}
+  ports:
+  - protocol: TCP
+    port: {port}
+    targetPort: {target_port}
+"""
+
+        elif resource_type == "ConfigMap":
+            data = params.get("data", {"key": "value"})
+            data_str = "\n".join([f"  {k}: {v}" for k, v in data.items()])
+            return f"""apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {name}
+  namespace: {namespace}
+data:
+{data_str}
+"""
+
+        elif resource_type == "Ingress":
+            host = params.get("host", "example.com")
+            path = params.get("path", "/")
+            svc_name = params.get("service_name", name)
+            svc_port = params.get("service_port", 80)
+            return f"""apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {name}
+  namespace: {namespace}
+  annotations:
+    kubernetes.io/ingress.class: nginx
+spec:
+  rules:
+  - host: {host}
+    http:
+      paths:
+      - path: {path}
+        pathType: Prefix
+        backend:
+          service:
+            name: {svc_name}
+            port:
+              number: {svc_port}
+"""
+        return "Unknown Resource Type"
+    except Exception as e:
+        return f"Error generating manifest: {str(e)}"
