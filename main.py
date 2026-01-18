@@ -11,7 +11,7 @@ from utils import (
     milliseconds_to_duration, jwt_decode, cron_next_runs, yaml_to_json, json_to_yaml,
     generate_ids, calculate_hashes, calculate_cidr_advanced, test_regex, decode_cert,
     check_port, calculate_wildcard, calculate_mss, calculate_ttl, lookup_mac_vendor,
-    get_ip_ownership
+    get_ip_ownership, audit_ssl_site
 )
 
 import sys
@@ -57,7 +57,9 @@ def load_config():
             "uuid": True,
             "cidr": True,
             "regex": True,
-            "cert": True
+            "cert": True,
+            "sslaudit": True,
+            "mac": True
         },
         "pinned_tabs": [],
         "tab_usage": {},
@@ -217,7 +219,8 @@ class SettingsDialog(ft.AlertDialog):
             "epoch": "Epoch Converter", "json": "JSON Tools", "secret": "Secret Decoder",
             "jwt": "JWT Inspector", "cron": "Cron Visualizer", "yaml": "YAML <-> JSON",
             "uuid": "UUID & Hash", "cidr": "CIDR Calculator", "regex": "Regex Tester",
-            "cert": "Certificate Decoder", "network": "Network Tools"
+            "cert": "Certificate Decoder", "network": "Network Tools", "sslaudit": "SSL Site Auditor",
+            "mac": "MAC Lookup"
         }
         
         # Ensure config sets
@@ -1293,6 +1296,69 @@ async def main(page: ft.Page):
         padding=20, expand=True
     )
 
+    # --- Tab 10: SSL Site Auditor ---
+    ssl_host_in = ft.TextField(label="Hostname / URL", hint_text="e.g. google.com", expand=True)
+    ssl_port_in = ft.TextField(label="Port", value="443", width=80)
+    ssl_res_grid = ft.Column(visible=False, spacing=10)
+    
+    async def audit_click(e):
+        from utils import audit_ssl_site
+        if not ssl_host_in.value: return
+        
+        # Extract hostname if they pasted a URL
+        host = ssl_host_in.value.split("://")[-1].split("/")[0].split(":")[0]
+        
+        res = audit_ssl_site(host, ssl_port_in.value)
+        if res["status"] == "error":
+            page.snack_bar = ft.SnackBar(ft.Text(f"Audit Error: {res['message']}"))
+            page.snack_bar.open = True
+            page.update()
+            return
+            
+        # Build Results
+        rows = [
+            ("Status:", "Valid ✅" if res["is_valid"] else "Invalid/Expired ❌"),
+            ("Days Until Expiry:", f"{res['days_left']} days"),
+            ("Protocol Supported:", res["protocol"]),
+            ("Subject:", res["subject"]),
+            ("Issuer:", res["issuer"]),
+            ("Valid From:", res["valid_from"]),
+            ("Valid To:", res["valid_to"]),
+            ("SANs (Alternative):", res["sans"]),
+            ("Serial Number:", res["serial"]),
+            ("Fingerprint:", res["fingerprint"]),
+        ]
+        
+        ssl_res_grid.controls = [
+            ft.Row([
+                ft.Container(ft.Text(label, weight="bold", size=13), width=150),
+                ft.Text(val, size=13, selectable=True)
+            ]) for label, val in rows
+        ]
+        ssl_res_grid.visible = True
+        page.update()
+
+    tab_ssl_auditor = ft.Container(
+        content=ft.Column([
+            ft.Text("SSL/TLS Site Auditor", size=20, weight="bold", color=ft.Colors.CYAN_200),
+            ft.Row([
+                ssl_host_in,
+                ssl_port_in,
+                ft.Button("Audit Site", icon=ft.Icons.SECURITY, on_click=audit_click),
+            ]),
+            ft.Divider(height=1),
+            ft.Container(
+                content=ft.Column([
+                    ft.Text("Audit Results", weight="bold", color=ft.Colors.BLUE_200),
+                    ft.Divider(height=1),
+                    ssl_res_grid
+                ], scroll=ft.ScrollMode.AUTO),
+                padding=10, border=ft.Border.all(1, ft.Colors.GREY_800), border_radius=5, expand=True
+            )
+        ], spacing=15, expand=True),
+        padding=20, expand=True
+    )
+
     available_tabs = [
         ("epoch", "Epoch Converter", ft.Icons.ACCESS_TIME, tab_time),
         ("json", "JSON Tools", ft.Icons.DATA_OBJECT, tab_json),
@@ -1302,6 +1368,7 @@ async def main(page: ft.Page):
         ("yaml", "YAML <-> JSON", ft.Icons.SWAP_HORIZ, tab_yaml),
         ("uuid", "UUID & Hash", ft.Icons.FINGERPRINT, tab_uuid),
         ("cidr", "CIDR Calculator", ft.Icons.NETWORK_CHECK, tab_cidr),
+        ("sslaudit", "SSL Site Auditor", ft.Icons.LOCK, tab_ssl_auditor),
         ("regex", "Regex Tester", ft.Icons.BUG_REPORT, tab_regex),
         ("cert", "Cert Decoder", ft.Icons.VERIFIED_USER, tab_cert),
         ("network", "Network Tools", ft.Icons.ROUTER, tab_network),

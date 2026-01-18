@@ -77,6 +77,16 @@ OpsNexus is built around a modular tab system, allowing you to enable only the t
 
 ![CIDR Calculator](assets/tab_cidr.png)
 
+#### SSL/TLS Site Auditor
+
+- **Certificate Health**: Instant validation status (Valid/Expired) with a visual indicator.
+- **Detailed Insights**: View Issuer, Subject, Serial Number, and Fingerprint (SHA256).
+- **Expiry Tracking**: Automatic calculation of days remaining until certificate expiration.
+- **SANs Visibility**: Lists Subject Alternative Names (SANs) for verified multi-domain support.
+- **Protocol Audit**: Identifies the specific TLS protocol negotiated (e.g., TLSv1.3).
+
+![SSL/TLS Site Auditor](assets/tab_ssl.png)
+
 #### Certificate Decoder
 
 - Inspect PEM-encoded certificates locally. View subject, issuer, validity dates, and serial numbers instantly.

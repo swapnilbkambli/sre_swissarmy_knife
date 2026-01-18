@@ -9,7 +9,10 @@ import hashlib
 import ipaddress
 import re
 import ulid
+import socket
+import ssl
 from cryptography import x509
+from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.backends import default_backend
 
 def epoch_to_datetime(epoch_str):
@@ -460,5 +463,54 @@ def get_ip_ownership(ip_str):
                     "location": f"{data.get('city', '')}, {data.get('country', '')}".strip(", ")
                 }
             return {"status": "error", "message": data.get("message", "Lookup failed")}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+def audit_ssl_site(hostname, port=443):
+    try:
+        # 1. Basic Connection & Cert Fetch
+        context = ssl.create_default_context()
+        # Ensure we don't hang if site is down
+        with socket.create_connection((hostname, int(port)), timeout=5) as sock:
+            with context.wrap_socket(sock, server_hostname=hostname) as ssock:
+                cert_bin = ssock.getpeercert(binary_form=True)
+                cert = x509.load_der_x509_certificate(cert_bin, default_backend())
+                protocol = ssock.version()
+        
+        # 2. Extract Details
+        subject = cert.subject.rfc4514_string()
+        issuer = cert.issuer.rfc4514_string()
+        not_before = cert.not_valid_before_utc
+        not_after = cert.not_valid_after_utc
+        now = datetime.datetime.now(datetime.timezone.utc)
+        
+        days_left = (not_after - now).days
+        is_valid = not_before <= now <= not_after
+        
+        # SANs (Subject Alternative Names)
+        try:
+            sans_ext = cert.extensions.get_extension_for_oid(x509.OID_SUBJECT_ALTERNATIVE_NAME).value
+            san_list = sans_ext.get_values_for_type(x509.DNSName)
+        except Exception:
+            san_list = []
+
+        # Serial & Fingerprint
+        serial = f"{cert.serial_number:X}"
+        fingerprint = cert.fingerprint(hashes.SHA256()).hex().upper()
+
+        return {
+            "status": "success",
+            "hostname": hostname,
+            "is_valid": is_valid,
+            "days_left": days_left,
+            "subject": subject,
+            "issuer": issuer,
+            "valid_from": not_before.strftime("%Y-%m-%d"),
+            "valid_to": not_after.strftime("%Y-%m-%d"),
+            "protocol": protocol,
+            "sans": ", ".join(san_list[:5]) + ("..." if len(san_list) > 5 else ""),
+            "serial": serial,
+            "fingerprint": f"SHA256: {fingerprint}"
+        }
     except Exception as e:
         return {"status": "error", "message": str(e)}
